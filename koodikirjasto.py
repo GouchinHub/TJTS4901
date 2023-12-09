@@ -342,8 +342,43 @@ def merkin_ensirekisteroinnit_vuosittain(pvm_alku, pvm_loppu, ajoneuvoluokka, me
 df = merkin_ensirekisteroinnit_vuosittain('2015-01-01','2020-01-01', 'M1','Toyota')
 
 
-# In[ ]:
+def ensirekisteroinnit_vuosittain(vuosi_ylärajaraja, vuosi_alaraja, filteri="merkkijamalli"):
+    if not filteri in ['merkkijamalli','merkki','malli']:
+        print("Virheellinen filteri")
+        return 
+    
+    cursor = luo_yhteys()
+    query = f''' 
+        SELECT {filteri}
+        '''
+    kolumnit = [filteri]
+    for vuosi in range(vuosi_alaraja, vuosi_ylärajaraja + 1, 1):
+        if filteri != "merkkijamalli":
+            query += f''', SUM(vuosi{vuosi}) AS vuosi{vuosi}'''
+        else:
+            query += f''', vuosi{vuosi}'''
+        kolumnit.append(str(vuosi))
+    
+    query += f''' FROM rekisteroinnitmalleittain '''
+    if filteri != "merkkijamalli":
+        query += f''' GROUP BY merkki '''
+        
+    query += f''' ORDER BY {filteri} '''
+    try:
+        cursor.execute(query)
+        # Fetch and print the results
+        records = cursor.fetchall()
+        df = pd.DataFrame(records, columns=kolumnit)
+        df.fillna("Ei määritelty", inplace=True)
+        print( df)
+        return df
+        
+        # Commit the transaction
+        #connection.commit()
+    except (Exception, psycopg2.Error) as error:
+        print("Error while executing SQL query:", error)
 
-
+def test():
+    return "Test"
 
 
