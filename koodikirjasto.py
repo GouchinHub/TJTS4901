@@ -471,8 +471,8 @@ def rekisteroityjen_autojen_tiedot_aikavalilla(vuosi_alaraja, vuosi_ylaraja):
         LEFT JOIN kayttovoima kv ON kv.id = ar.kayttovoima
         LEFT JOIN vaihteistotyyppi vt ON vt.id = ar.vaihteistotyyppi
         WHERE ajoneuvoluokka = 'M1'
-        AND ensirekisterointipvm >= '{vuosi}-01-01' 
-        AND ensirekisterointipvm < '{vuosi+1}-01-01'
+        AND ensirekisterointipvm >= '{vuosi_alaraja}-01-01' 
+        AND ensirekisterointipvm < '{vuosi_ylaraja+1}-01-01'
     '''
     try:
         cursor.execute(query)
