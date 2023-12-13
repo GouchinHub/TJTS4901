@@ -488,3 +488,96 @@ def rekisteroityjen_autojen_tiedot_aikavalilla(vuosi_alaraja, vuosi_ylaraja):
         #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
+
+def datan_puutteellisuus_kolumnittain_henkiloauto_luokassa():
+    cursor = luo_yhteys()
+    query = f'''
+        SELECT 
+        	COUNT(CASE WHEN merkkiselvakielinen IS NULL THEN 1 END) AS merkki,
+          	COUNT(CASE WHEN vari IS NULL THEN 1 END) AS vari,
+        	COUNT(CASE WHEN korityyppi IS NULL THEN 1 END) AS korityyppi,
+          	COUNT(CASE WHEN ohjaamotyyppi IS NULL THEN 1 END) AS ohjaamotyyppi,
+          	COUNT(CASE WHEN istumapaikkojenlkm IS NULL THEN 1 END) AS istumapaikkojenlkm,
+          	COUNT(CASE WHEN omamassa IS NULL THEN 1 END) AS omamassa,
+          	COUNT(CASE WHEN kayttovoima IS NULL THEN 1 END) AS kayttovoima,
+          	COUNT(CASE WHEN iskutilavuus IS NULL THEN 1 END) AS iskutilavuus,
+          	COUNT(CASE WHEN suurinnettoteho IS NULL THEN 1 END) AS suurinnettoteho,
+        	COUNT(CASE WHEN sylintereidenlkm IS NULL THEN 1 END) AS sylintereidenlkm,
+          	COUNT(CASE WHEN ahdin IS NULL THEN 1 END) AS ahdin,
+        	COUNT(CASE WHEN vaihteistotyyppi IS NULL THEN 1 END) AS vaihteisto,
+        	COUNT(CASE WHEN vaihteidenlkm IS NULL THEN 1 END) AS vaihteidenlkm,
+        	COUNT(CASE WHEN kunta IS NULL THEN 1 END) AS kunta,
+        	COUNT(CASE WHEN matkamittarilukema IS NULL THEN 1 END) AS matkamittarilukema,
+        	COUNT(ID) AS yhteensa
+        FROM ajoneuvorekisteroinnit
+        WHERE ajoneuvoluokka = 'M1'
+        	
+        UNION
+        
+        SELECT 
+        	ROUND(100 - (COUNT(CASE WHEN merkkiselvakielinen IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4)  AS merkki,
+        	ROUND(100 - (COUNT(CASE WHEN vari IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS vari,
+          	ROUND(100 - (COUNT(CASE WHEN korityyppi IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS korityyppi,
+          	ROUND(100 - (COUNT(CASE WHEN ohjaamotyyppi IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS ohjaamotyyppi,
+          	ROUND(100 - (COUNT(CASE WHEN istumapaikkojenlkm IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS istumapaikkojenlkm,
+          	ROUND(100 - (COUNT(CASE WHEN omamassa IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS omamassa,
+          	ROUND(100 - (COUNT(CASE WHEN kayttovoima IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS kayttovoima,
+          	ROUND(100 - (COUNT(CASE WHEN iskutilavuus IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS iskutilavuus,
+          	ROUND(100 - (COUNT(CASE WHEN suurinnettoteho IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS suurinnettoteho,
+        	ROUND(100 - (COUNT(CASE WHEN sylintereidenlkm IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS sylintereidenlkm,
+          	ROUND(100 - (COUNT(CASE WHEN ahdin IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS ahdin,
+        	ROUND(100 - (COUNT(CASE WHEN vaihteistotyyppi IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS vaihteisto,
+        	ROUND(100 - (COUNT(CASE WHEN vaihteidenlkm IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS vaihteidenlkm,
+        	ROUND(100 - (COUNT(CASE WHEN kunta IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS kunta,
+        	ROUND(100 - (COUNT(CASE WHEN matkamittarilukema IS NULL THEN 1 END) * 100.0 / COUNT(ID)), 4) AS matkamittarilukema,
+        	0 AS yhteensa
+        FROM ajoneuvorekisteroinnit
+        WHERE ajoneuvoluokka = 'M1'
+        ORDER BY yhteensa DESC
+    '''
+    try:
+        cursor.execute(query)
+        # Fetch and print the results
+        records = cursor.fetchall()
+        df = pd.DataFrame(records, columns=["merkki", "vari", "korityyppi", "ohjaamotyyppi", 
+            "istumapaikkojenlkm", "omamassa", "kayttovoima", "iskutilavuus", 
+        	"suurinnettoteho", "sylintereidenlkm", "ahdin",
+        	"vaihteisto", "vaihteidenlkm", "kunta", "mittarilukema", "yhteensa"])
+        
+        return df
+        
+        # Commit the transaction
+        #connection.commit()
+    except (Exception, psycopg2.Error) as error:
+        print("Error while executing SQL query:", error)
+
+def ensirekisteroinnit_vuosittain_henkiloauto_luokassa(vuosi_alaraja, vuosi_ylaraja):
+    if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
+        print("vuosirajaus oltava välillä 1975 - 2023")
+        
+    cursor = luo_yhteys()
+    query = f''' 
+        SELECT COUNT(ar.ensirekisterointipvm) AS yhteensa'''
+
+    kolumnit = ['yhteensa']
+    for vuosi in range(vuosi_alaraja, vuosi_ylaraja + 1, 1):
+        query += f''', 
+            COUNT(CASE WHEN EXTRACT(YEAR FROM ar.ensirekisterointipvm) = {vuosi} THEN 1 END) AS vuosi{vuosi}'''
+        kolumnit.append('vuosi' + str(vuosi))
+
+    query += f''' 
+          FROM ajoneuvorekisteroinnit ar
+          WHERE ar.ajoneuvoluokka = 'M1' AND ar.ensirekisterointipvm IS NOT NULL; '''
+
+    try:
+        cursor.execute(query)
+        # Fetch and print the results
+        records = cursor.fetchall()
+        df = pd.DataFrame(records, columns=kolumnit)
+        df.fillna("Ei määritelty", inplace=True)
+        return df
+        
+        # Commit the transaction
+        #connection.commit()
+    except (Exception, psycopg2.Error) as error:
+        print("Error while executing SQL query:", error)
