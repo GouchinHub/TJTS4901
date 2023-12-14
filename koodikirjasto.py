@@ -11,31 +11,30 @@ def luo_yhteys():
             password="1337"
         )
         #print("Connection to PostgreSQL database successful")
-        print(connection)
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to PostgreSQL database:", error)
 
     try:
         cursor = connection.cursor()
-        print("Cursor created successfully")
     except (Exception, psycopg2.Error) as error:
         print("Error while creating a cursor:", error)
     return cursor
 
-def ensirekisteroinnit_kunnittain_ajoneuvoluokassa(pvm_alku, pvm_loppu, ajoneuvoluokka, kunta, hae_malleittain):
+def ensirekisteroinnit_kunnittain_ajoneuvoluokassa(pvm_alku, pvm_loppu, ajoneuvoluokka, kunta_lista, hae_malleittain):
     cursor = luo_yhteys()
     query = f''' SELECT ar.merkkiselvakielinen, '''
     if(hae_malleittain):
         query += f'''ar.mallimerkinta,'''
     query += f'''
+        ku.selite_fi,
         COUNT(ar.id) AS maara
         FROM ajoneuvorekisteroinnit ar
         LEFT JOIN kunta ku ON ku.id = ar.kunta
-        WHERE ku.selite_fi = '{kunta.title()}' 
+        WHERE ku.selite_fi IN {tuple(kunta_lista)}
         AND ar.ajoneuvoluokka = '{ajoneuvoluokka}' 
         AND ensirekisterointipvm >= '{pvm_alku}' 
         AND ensirekisterointipvm <= '{pvm_loppu}'
-		GROUP BY ar.merkkiselvakielinen 
+		GROUP BY ar.merkkiselvakielinen, ku.selite_fi 
     '''
     if(hae_malleittain):
         query += f''', ar.mallimerkinta'''
@@ -47,7 +46,7 @@ def ensirekisteroinnit_kunnittain_ajoneuvoluokassa(pvm_alku, pvm_loppu, ajoneuvo
         cursor.execute(query)
         # Fetch and print the results
         records = cursor.fetchall()
-        columns = ["Merkki", "Määrä"]
+        columns = ["Merkki", "kunta", "Määrä"]
         if (hae_malleittain):
             columns.insert(1, "Malli")
         
@@ -58,6 +57,7 @@ def ensirekisteroinnit_kunnittain_ajoneuvoluokassa(pvm_alku, pvm_loppu, ajoneuvo
         #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
+
 
 def hybridiautot_luokittain(luokka, vuosi_alku, vuosi_loppu,):
     cursor = luo_yhteys()
