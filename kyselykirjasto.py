@@ -409,3 +409,40 @@ def ensirekisteroinnit_vuosittain_henkiloauto_luokassa(vuosi_alaraja, vuosi_ylar
         #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
+
+def rekisteroinnit_ajokilometreittain_kunnissa_aikavalilla(kunnat, vuosi_alaraja, vuosi_ylaraja, vali, rajaus):
+    if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
+        print("vuosirajaus oltava välillä 1975 - 2023")
+        
+    cursor = luo_yhteys()
+    query = f''' 
+        SELECT
+            ku.selite_fi AS kunta,
+            FLOOR(ar.matkamittarilukema / {vali}) * {vali} AS ajokilometrit,
+            COUNT(ar.id) AS maara
+        FROM ajoneuvorekisteroinnit ar
+        JOIN kunta ku ON ku.id = ar.kunta
+        WHERE ajoneuvoluokka = 'M1'
+        AND ar.matkamittarilukema IS NOT NULL 
+        AND ar.matkamittarilukema < {rajaus}
+        AND ensirekisterointipvm >= '{str(vuosi_alaraja)}-01-01' 
+        AND ensirekisterointipvm <= '{str(vuosi_ylaraja+1)}-01-01'
+        AND ku.selite_fi IN {tuple(kunnat)}
+        GROUP BY
+            GROUPING SETS ((ku.selite_fi, FLOOR(matkamittarilukema / {vali})), (ku.selite_fi))
+        ORDER BY maara DESC;'''
+
+    try:
+        cursor.execute(query)
+        # Fetch and print the results
+        records = cursor.fetchall()
+        cursor;
+        column2 = "ajokilometrit (" + str(rajaus) +")"
+        df = pd.DataFrame(records, columns=["kunta","ajokilometrit", "maara"])
+        df['ajokilometrit'] = df['ajokilometrit'].astype(str)
+        return df
+        
+        # Commit the transaction
+        #connection.commit()
+    except (Exception, psycopg2.Error) as error:
+        print("Error while executing SQL query:", error)
