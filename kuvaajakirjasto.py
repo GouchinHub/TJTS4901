@@ -1,12 +1,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 import seaborn as sns
 import kyselykirjasto as kk
+import warnings
 
 
 def rekisterointien_osuus_ajokilometriluokittain_eri_kunnissa(kunnat, vuosi_alaraja, vuosi_ylaraja, vali, rajaus):
-    df = rekisteroinnit_ajokilometreittain_kunnissa_aikavalilla(kunnat, vuosi_alaraja, vuosi_ylaraja, vali, rajaus)
+    df = kk.rekisteroinnit_ajokilometreittain_kunnissa_aikavalilla(kunnat, vuosi_alaraja, vuosi_ylaraja, vali, rajaus)
     
     df['ajokilometrit'] = pd.to_numeric(df['ajokilometrit'], errors='coerce')
     df = df.dropna(subset=['ajokilometrit'])
