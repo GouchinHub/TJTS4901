@@ -5,10 +5,10 @@ import psycopg2
 def luo_yhteys():
     try:
         connection = psycopg2.connect(
-            host="192.168.0.15",
-            database="VehicleRegisterDatabase",
-            user="postgres",
-            password="1337"
+            host="<host_name>",
+            database="<database_name>",
+            user="<username>",
+            password="<password>"
         )
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to PostgreSQL database:", error)
