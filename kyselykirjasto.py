@@ -10,17 +10,21 @@ def luo_yhteys():
             user="postgres",
             password="1337"
         )
-        #print("Connection to PostgreSQL database successful")
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to PostgreSQL database:", error)
 
     try:
         cursor = connection.cursor()
+        return cursor
     except (Exception, psycopg2.Error) as error:
         print("Error while creating a cursor:", error)
-    return cursor
 
-def ensirekisteroinnit_kunnittain_ajoneuvoluokassa(pvm_alku, pvm_loppu, ajoneuvoluokka, kunta_lista, hae_malleittain):
+
+def merkkien_ensirekisteroinnit_kunnittain(vuosi_alaraja, vuosi_ylaraja, kunta_lista, hae_malleittain):
+    if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
+        print("vuosirajaus oltava välillä 1975 - 2023")
+        return
+    
     cursor = luo_yhteys()
     query = f''' SELECT ar.merkkiselvakielinen, '''
     if(hae_malleittain):
@@ -31,9 +35,9 @@ def ensirekisteroinnit_kunnittain_ajoneuvoluokassa(pvm_alku, pvm_loppu, ajoneuvo
         FROM ajoneuvorekisteroinnit ar
         LEFT JOIN kunta ku ON ku.id = ar.kunta
         WHERE ku.selite_fi IN {tuple(kunta_lista)}
-        AND ar.ajoneuvoluokka = '{ajoneuvoluokka}' 
-        AND ensirekisterointipvm >= '{pvm_alku}' 
-        AND ensirekisterointipvm <= '{pvm_loppu}'
+        AND ar.ajoneuvoluokka = 'M1' 
+        AND ensirekisterointipvm >= '{str(vuosi_alaraja)}-01-01' 
+        AND ensirekisterointipvm <= '{str(vuosi_ylaraja+1)}-01-01'
 		GROUP BY ar.merkkiselvakielinen, ku.selite_fi 
     '''
     if(hae_malleittain):
@@ -44,48 +48,48 @@ def ensirekisteroinnit_kunnittain_ajoneuvoluokassa(pvm_alku, pvm_loppu, ajoneuvo
     '''
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         columns = ["Merkki", "kunta", "Määrä"]
         if (hae_malleittain):
             columns.insert(1, "Malli")
-        
         df = pd.DataFrame(records, columns=columns)
 
         return df
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
 
 
-def hybridiautot_luokittain(luokka, vuosi_alku, vuosi_loppu,):
+def hybridiautot_luokittain(vuosi_alaraja, vuosi_ylaraja):
+    if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
+        print("vuosirajaus oltava välillä 1975 - 2023")
+        return
+        
     cursor = luo_yhteys()
     query = f'''
         SELECT EXTRACT(YEAR FROM ar.ensirekisterointipvm), EXTRACT(MONTH FROM ar.ensirekisterointipvm), hl.lyhytselite_fi, COUNT(ar.*)
         FROM ajoneuvorekisteroinnit ar
     	LEFT JOIN hybridiluokka hl ON hl.id = ar.sahkohybridinluokka
         WHERE ar.sahkohybridi = true
-        AND ar.ajoneuvoluokka = '{luokka}' 
-        AND ar.ensirekisterointipvm >= '{str(vuosi_alku)}-1-1' 
-        AND ar.ensirekisterointipvm <= '{str(vuosi_loppu)}-12-31'
+        AND ar.ajoneuvoluokka = 'M1' 
+        AND ar.ensirekisterointipvm >= '{str(vuosi_alaraja)}-1-1' 
+        AND ar.ensirekisterointipvm <= '{str(vuosi_ylaraja)}-12-31'
         GROUP BY EXTRACT(YEAR FROM ar.ensirekisterointipvm), EXTRACT(MONTH FROM ar.ensirekisterointipvm), hl.lyhytselite_fi
         ORDER BY EXTRACT(YEAR FROM ar.ensirekisterointipvm) ASC, EXTRACT(MONTH FROM ar.ensirekisterointipvm) ASC, hl.lyhytselite_fi
     '''
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=["vuosi", "kuukausi", "hybridityyppi", "maara"])
         df.fillna("Ei määritelty", inplace=True)
 
         return df
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
 
+# Ei tullut tarvetta käyttää tätä data-analyysiin tässä työssä  
 def ensirekisteroinnit_vuosittain_ominaisuuden_mukaan(ominaisuus, vuosi, luokka):
+    if vuosi < 1975 or vuosi > 2023:
+        print("vuosi oltava välillä 1975 - 2023")
     cursor = luo_yhteys()
     query = f'''
         SELECT o.selite_fi, COUNT(ar.id) AS maara
@@ -97,17 +101,14 @@ def ensirekisteroinnit_vuosittain_ominaisuuden_mukaan(ominaisuus, vuosi, luokka)
     '''
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=[ominaisuus, "maara"])
         df.fillna("Ei määritelty", inplace=True)
-        print(df)
         return df
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
-        
+
+# Ei tullut tarvetta käyttää tätä data-analyysiin tässä työssä
 def ensirekisterointien_maarat_ajoneuvoluokittain_aikavalilla(pvm_alku, pvm_loppu):
     cursor = luo_yhteys()
     query = f'''
@@ -124,56 +125,8 @@ def ensirekisterointien_maarat_ajoneuvoluokittain_aikavalilla(pvm_alku, pvm_lopp
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=["ajoneuvoluokka", "maara"])
         df.fillna("Ei määritelty", inplace=True)
-        print( df)
         return df
-        
-        # Commit the transaction
-        #connection.commit()
-    except (Exception, psycopg2.Error) as error:
-        print("Error while executing SQL query:", error)
 
-def mallille_ja_merkille_korreloituvat_muuttujat(luokka):
-    cursor = luo_yhteys()
-    query = f'''
-        SELECT al.lyhytselite_fi, COUNT(ar.id) AS maara
-        FROM ajoneuvorekisteroinnit ar
-    	JOIN ajoneuvoluokka al ON al.id = ar.ajoneuvoluokka
-        WHERE ensirekisterointipvm >= '{pvm_alku}' AND ensirekisterointipvm <= '{pvm_loppu}'
-        GROUP BY al.lyhytselite_fi
-    	ORDER BY maara DESC;
-    '''
-    try:
-        cursor.execute(query)
-        # Fetch and print the results
-        records = cursor.fetchall()
-        df = pd.DataFrame(records, columns=["ajoneuvoluokka", "maara"])
-        df.fillna("Ei määritelty", inplace=True)
-        print( df)
-        return df
-        
-        # Commit the transaction
-        #connection.commit()
-    except (Exception, psycopg2.Error) as error:
-        print("Error while executing SQL query:", error)
-
-def merkin_ensirekisteroinnit_vuosittain(pvm_alku, pvm_loppu, ajoneuvoluokka, merkki):
-    cursor = luo_yhteys()
-    query = f'''
-        SELECT *
-        FROM rekisteroinnit malleittain
-        AND malli = '{merkki}';
-    '''
-    try:
-        cursor.execute(query)
-        # Fetch and print the results
-        records = cursor.fetchall()
-        df = pd.DataFrame(records)
-        df.fillna("Ei määritelty", inplace=True)
-        print( df)
-        return df
-        
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
 
@@ -181,6 +134,10 @@ def ensirekisteroinnit_vuosittain(vuosi_alaraja, vuosi_ylaraja, filteri="merkkij
     if not filteri in ['merkkijamalli','merkki','malli']:
         print("Virheellinen filteri")
         return 
+        
+    if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
+        print("vuosirajaus oltava välillä 1975 - 2023")
+        return
     
     cursor = luo_yhteys()
     query = f''' 
@@ -201,18 +158,19 @@ def ensirekisteroinnit_vuosittain(vuosi_alaraja, vuosi_ylaraja, filteri="merkkij
     query += f''' ORDER BY {filteri} '''
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=kolumnit)
         df.fillna("Ei määritelty", inplace=True)
         return df
         
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
   
 def ensirekisteroidyt_merkit_vuosittain_aikavalilla(vuosi_alaraja, vuosi_ylaraja):
+    if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
+        print("vuosirajaus oltava välillä 1975 - 2023")
+        return
+    
     cursor = luo_yhteys()
     query = f''' 
         SELECT am.selite AS merkki'''
@@ -273,18 +231,19 @@ def ensirekisteroidyt_merkit_vuosittain_aikavalilla(vuosi_alaraja, vuosi_ylaraja
 
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=kolumnit)
         df.fillna("Ei määritelty", inplace=True)
         return df
         
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
 
 def rekisteroityjen_autojen_tiedot_aikavalilla(vuosi_alaraja, vuosi_ylaraja):
+    if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
+        print("vuosirajaus oltava välillä 1975 - 2023")
+        return
+        
     cursor = luo_yhteys()
     query = f'''
         SELECT ar.merkkiselvakielinen AS merkki, v.selite_fi AS vari, kt.selite_fi AS korityyppi, 
@@ -304,7 +263,6 @@ def rekisteroityjen_autojen_tiedot_aikavalilla(vuosi_alaraja, vuosi_ylaraja):
     '''
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=["merkkiselvakielinen", "vari", "korityyppi", "ohjaamotyyppi", 
             "istumapaikkojenlkm", "omamassa", "kayttovoima", "iskutilavuus", 
@@ -312,8 +270,6 @@ def rekisteroityjen_autojen_tiedot_aikavalilla(vuosi_alaraja, vuosi_ylaraja):
         	"vaihteistotyyppi", "vaihteidenlkm", "kunta", "matkamittarilukema"])
         return df
         
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
 
@@ -365,7 +321,6 @@ def datan_puutteellisuus_kolumnittain_henkiloauto_luokassa():
     '''
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=["merkki", "vari", "korityyppi", "ohjaamotyyppi", 
             "istumapaikkojenlkm", "omamassa", "kayttovoima", "iskutilavuus", 
@@ -374,14 +329,13 @@ def datan_puutteellisuus_kolumnittain_henkiloauto_luokassa():
         
         return df
         
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
 
 def ensirekisteroinnit_vuosittain_henkiloauto_luokassa(vuosi_alaraja, vuosi_ylaraja):
     if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
         print("vuosirajaus oltava välillä 1975 - 2023")
+        return
         
     cursor = luo_yhteys()
     query = f''' 
@@ -399,20 +353,18 @@ def ensirekisteroinnit_vuosittain_henkiloauto_luokassa(vuosi_alaraja, vuosi_ylar
 
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         df = pd.DataFrame(records, columns=kolumnit)
         df.fillna("Ei määritelty", inplace=True)
         return df
         
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
 
 def rekisteroinnit_ajokilometreittain_kunnissa_aikavalilla(kunnat, vuosi_alaraja, vuosi_ylaraja, vali, rajaus):
     if vuosi_alaraja < 1975 or vuosi_ylaraja > 2023:
         print("vuosirajaus oltava välillä 1975 - 2023")
+        return
         
     cursor = luo_yhteys()
     query = f''' 
@@ -434,7 +386,6 @@ def rekisteroinnit_ajokilometreittain_kunnissa_aikavalilla(kunnat, vuosi_alaraja
 
     try:
         cursor.execute(query)
-        # Fetch and print the results
         records = cursor.fetchall()
         cursor;
         column2 = "ajokilometrit (" + str(rajaus) +")"
@@ -442,7 +393,5 @@ def rekisteroinnit_ajokilometreittain_kunnissa_aikavalilla(kunnat, vuosi_alaraja
         df['ajokilometrit'] = df['ajokilometrit'].astype(str)
         return df
         
-        # Commit the transaction
-        #connection.commit()
     except (Exception, psycopg2.Error) as error:
         print("Error while executing SQL query:", error)
