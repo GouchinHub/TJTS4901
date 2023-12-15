@@ -1,2 +1,0 @@
-# Ohjeet tietokannan pystyttämiseen
-
